@@ -1,0 +1,1 @@
+"""adzzat demo package."""
