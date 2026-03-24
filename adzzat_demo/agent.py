@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 import os
 import uuid
-import re
 from typing import Optional, Tuple
 
+from dotenv import load_dotenv
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner
@@ -14,6 +14,8 @@ from google.genai import types
 from pydantic import ValidationError
 
 from adzzat_demo.schemas import Plan
+
+load_dotenv()
 
 APP_NAME = "order_orchestrator"
 USER_ID = "api_user"
@@ -31,9 +33,19 @@ Convert the user request into a JSON plan that matches this schema:
 
 Rules:
 - Only use the tools: "cancel_order" and "send_email".
-- If the user asks to cancel an order, include a cancel_order step with an order_id.
-- If the user asks to send confirmation, include a send_email step with email and message.
-- Output ONLY valid JSON. No extra text.
+- Extract concrete values from the user message.
+- For cancel_order, args MUST include: {{"order_id": "<id>"}}.
+- For send_email, args MUST include: {{"email": "<email>", "message": "<text>"}}.
+- Do NOT output schema fragments or JSON Schema keywords like "title", "type", "additionalProperties".
+- Output ONLY the JSON plan. No prose, no code fences.
+
+Example output:
+{{
+  "steps": [
+    {{"tool": "cancel_order", "args": {{"order_id": "9921"}}}},
+    {{"tool": "send_email", "args": {{"email": "user@example.com", "message": "Your order 9921 was cancelled."}}}}
+  ]
+}}
 """.strip()
 
 planner_agent = LlmAgent(
@@ -49,6 +61,7 @@ planner_agent = LlmAgent(
     generate_content_config=types.GenerateContentConfig(
         temperature=0.1,
         max_output_tokens=256,
+        response_mime_type="application/json",
     ),
 )
 
@@ -57,7 +70,9 @@ planner_runner = Runner(agent=planner_agent, app_name=APP_NAME, session_service=
 
 
 class PlanError(RuntimeError):
-    pass
+    def __init__(self, message: str, debug: dict | None = None) -> None:
+        super().__init__(message)
+        self.debug = debug or {}
 
 
 def _new_session_id() -> str:
@@ -84,35 +99,18 @@ async def plan_request(message: str) -> Tuple[Plan, dict]:
             final_text = event.content.parts[0].text
 
     if not final_text:
-        raise PlanError("Planner returned no response.")
+        raise PlanError("Planner returned no response.", {"planner_raw": None})
 
     try:
         plan = Plan.model_validate_json(final_text)
     except ValidationError as exc:
-        raise PlanError("Planner output failed schema validation.") from exc
-
-    order_id_match = re.search(r"#?(\\d{3,})", message)
-    email_match = re.search(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", message, re.IGNORECASE)
-    order_id = order_id_match.group(1) if order_id_match else None
-    email = email_match.group(0) if email_match else None
-    wants_cancel = "cancel" in message.lower()
-    wants_email = "email" in message.lower()
-
-    for step in plan.steps:
-        if step.tool == "cancel_order" and not str(step.args.get("order_id", "")).strip() and order_id:
-            step.args["order_id"] = order_id
-        if step.tool == "send_email" and not str(step.args.get("email", "")).strip() and email:
-            step.args["email"] = email
-
-    tools_in_plan = {step.tool for step in plan.steps}
-    if wants_cancel and "cancel_order" not in tools_in_plan and order_id:
-        plan.steps.insert(0, {"tool": "cancel_order", "args": {"order_id": order_id}})
-    if wants_email and "send_email" not in tools_in_plan and email:
-        plan.steps.append({"tool": "send_email", "args": {"email": email}})
+        raise PlanError(
+            "Planner output failed schema validation.",
+            {"planner_raw": final_text},
+        ) from exc
 
     debug = {
         "planner_raw": final_text,
-        "extracted_fields": {"order_id": order_id, "email": email},
         "final_plan": plan.model_dump(),
     }
 

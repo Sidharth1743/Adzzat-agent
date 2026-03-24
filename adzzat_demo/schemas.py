@@ -1,13 +1,30 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, Field
 
 
-class PlanStep(BaseModel):
-    tool: Literal["cancel_order", "send_email"]
-    args: dict[str, Any] = Field(default_factory=dict)
+class CancelOrderArgs(BaseModel):
+    order_id: str
+
+
+class SendEmailArgs(BaseModel):
+    email: str
+    message: str
+
+
+class CancelOrderStep(BaseModel):
+    tool: Literal["cancel_order"]
+    args: CancelOrderArgs
+
+
+class SendEmailStep(BaseModel):
+    tool: Literal["send_email"]
+    args: SendEmailArgs
+
+
+PlanStep = Annotated[Union[CancelOrderStep, SendEmailStep], Field(discriminator="tool")]
 
 
 class Plan(BaseModel):

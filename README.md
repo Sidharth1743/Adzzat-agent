@@ -66,6 +66,13 @@ curl -X POST http://localhost:8080/agent \
 - **Planner**: A Google ADK `LlmAgent` prompts the LFM model to return a strict JSON plan.
 - **Orchestrator**: Executes steps in order and stops on `cancel_order` failure.
 - **Tools**: `cancel_order` simulates a 20% failure rate; `send_email` uses SMTP and adds a 1s delay.
+- **Logging**: Structured JSON logs with `request_id`, tool start/end, and latencies.
+
+## Response Tracing
+The API response includes a `steps` array with:
+- Planner raw output and validated plan
+- Tool start/end entries with durations
+- A final `total` step with end-to-end latency
 
 ## Files
 - `app.py`: FastAPI app and route handler.
