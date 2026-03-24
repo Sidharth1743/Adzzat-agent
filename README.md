@@ -79,6 +79,7 @@ flowchart LR
     ORCH -->|send_email SMTP| TOOL2[SMTP Server]
     API --> LOGS[Structured Logs]
 ```
+---
 
 ## Response Tracing
 The API response includes a `steps` array with:
