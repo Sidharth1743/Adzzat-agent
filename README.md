@@ -73,9 +73,9 @@ curl -X POST http://localhost:8080/agent \
 flowchart LR
     U[User] -->|POST /agent| API[FastAPI]
     API -->|plan_request| ADK[Google ADK LlmAgent]
-    ADK -->|OpenAI-compatible| VLLM[vLLM Server<br/>LFM Model]
+    ADK -->|OpenAI-compatible| VLLM[vLLM Server<br/>lfm-2.5-1.2b-thinking Model]
     ADK -->|JSON Plan| ORCH[Orchestrator]
-    ORCH -->|cancel_order| TOOL1[Mock Order Service]
+    ORCH -->|cancel_order| TOOL1[Order Service]
     ORCH -->|send_email SMTP| TOOL2[SMTP Server]
     API --> LOGS[Structured Logs]
 ```
@@ -85,6 +85,11 @@ The API response includes a `steps` array with:
 - Planner raw output and validated plan
 - Tool start/end entries with durations
 - A final `total` step with end-to-end latency
+
+## SMTP Delivery
+Emails are sent **for real** via SMTP (not simulated). If configured correctly, you should see the message in:
+- The recipient inbox (or spam)
+- The sender Gmail “Sent” folder
 
 ## Files
 - `app.py`: FastAPI app and route handler.
