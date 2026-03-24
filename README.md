@@ -68,6 +68,18 @@ curl -X POST http://localhost:8080/agent \
 - **Tools**: `cancel_order` simulates a 20% failure rate; `send_email` uses SMTP and adds a 1s delay.
 - **Logging**: Structured JSON logs with `request_id`, tool start/end, and latencies.
 
+## Architecture Diagram
+```mermaid
+flowchart LR
+    U[User] -->|POST /agent| API[FastAPI]
+    API -->|plan_request| ADK[Google ADK LlmAgent]
+    ADK -->|OpenAI-compatible| VLLM[vLLM Server<br/>LFM Model]
+    ADK -->|JSON Plan| ORCH[Orchestrator]
+    ORCH -->|cancel_order| TOOL1[Mock Order Service]
+    ORCH -->|send_email SMTP| TOOL2[SMTP Server]
+    API --> LOGS[Structured Logs]
+```
+
 ## Response Tracing
 The API response includes a `steps` array with:
 - Planner raw output and validated plan
